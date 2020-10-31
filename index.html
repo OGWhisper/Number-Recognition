@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>
+        YeeHaa
+    </title>
+</head>
+
+<style>
+    html,
+    body {
+        margin: 0;
+        padding: 0;
+
+        text-align: center;
+    }
+
+    table {
+        margin: auto;
+    }
+
+    td {
+        width: 100px;
+        height: 100px;
+        padding: 0;
+        border: solid 1px black;
+        cursor: pointer;
+    }
+
+    .off {
+        background-color: blanchedalmond;
+    }
+
+    .on {
+        background-color: black;
+    }
+</style>
+
+<body>
+    <!-- <table id="table">
+
+    </table> -->
+
+    <!--<input id="trueValue" type="number">
+
+    <button onclick="send();">
+        Send
+    </button>-->
+    <!-- <h1 id="trueValue"></h1>
+    <br>
+    <br> -->
+    <!-- <h3 style="font-weight: 100;">
+        Click Tiles to change their colour and "Draw"<br>
+        Draw a digit (Number 0 - 9)<br>
+        Then hit the number on your keypad for the number you have drawn<br>
+        This sends the data to my AI to help Train it to recognize numbers<br>
+        Try to draw a number in a unique way<br>
+    </h3> -->
+</body>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.1.9/p5.min.js"></script>
+
+<script>
+    let uri = 'ws://90.196.77.145:8080';
+    let size = 5;
+
+    let progress = [];
+
+    function loadJSON(filename, callback) {
+
+        var xobj = new XMLHttpRequest();
+        xobj.overrideMimeType("application/json");
+        xobj.open('GET', filename, true); // Replace 'my_data' with the path to your file
+        xobj.onreadystatechange = function () {
+            if (xobj.readyState == 4 && xobj.status == "200") {
+                // Required use of an anonymous callback as .open will NOT return a value but simply returns undefined in asynchronous mode
+                callback(xobj.responseText);
+            }
+        };
+        xobj.send(null);
+    }
+
+    let canv = [];
+
+    const socket = new WebSocket(uri);
+
+    setInterval(() => {
+        location.reload();
+    }, 1000)
+
+    socket.addEventListener('close', () => {
+        setTimeout(() => {
+            alert('Disconnected!');
+        }, 100)
+    })
+
+    socket.addEventListener(('open'), () => {
+        // let table = document.getElementById('table');
+        // for (let y = 0; y < size; y++) {
+        //     let row = document.createElement('tr');
+        //     let canvRow = [];
+        //     for (let x = 0; x < size; x++) {
+        //         canvRow.push(0);
+
+        //         let cell = document.createElement('td');
+        //         cell.id = `${x},${y}`;
+        //         cell.className = "off";
+        //         cell.onclick = (e) => {
+        //             let t = e.target
+        //             let coords = t.id.split(',');
+        //             if (t.className == "off") {
+        //                 t.className = "on";
+        //                 canv[coords[0]][coords[1]] = 1;
+        //             } else {
+        //                 t.className = "off";
+        //                 canv[coords[0]][coords[1]] = 0;
+        //             }
+        //         }
+        //         row.appendChild(cell);
+        //     }
+        //     table.appendChild(row);
+        //     canv.push(canvRow);
+        // }
+    })
+
+    document.onkeypress = function (e) {
+        e = e || window.event;
+        document.getElementById('trueValue').innerHTML = e.keyCode - 48;
+        console.log(e.keyCode)
+        send();
+    };
+
+    function send() {
+        let outgoing = {
+            "id": 100,
+            "value": Number.parseInt(document.getElementById('trueValue').innerHTML)
+        };
+
+        let label = "";
+
+        for (let row of canv) {
+            for (let cell of row) {
+                label += (cell.toString());
+            }
+        }
+
+        outgoing.label = label;
+
+        socket.send(JSON.stringify(outgoing));
+    }
+
+    let W = 1200;
+    let H = 800;
+
+    function setup() {
+        createCanvas(W, H);
+        noLoop();
+    }
+
+    loadJSON('progress.json', (r) => {
+        progress = JSON.parse(JSON.parse(JSON.stringify(r)));
+        draw();
+    })
+
+    function RELU(z) {
+        if (z > 0) {
+            return z;
+        } else {
+            return 0;
+        }
+    }
+
+    function draw() {
+        let epoch = progress.length;
+
+        while (progress.length > W) {
+            progress.shift();
+        }
+
+        background(200, 200, 255);
+        let max = Math.max(...progress) * 1.05;
+        let min = Math.min(...progress) * 0.95;
+        let range = max - min;
+        strokeWeight(4);
+        for (let x = 1; x < progress.length; x++) {
+            let delta = progress[x - 1] - progress[x];
+            stroke(128, RELU(delta) * 8500000, 0)
+            fill(128, RELU(delta) * 8500000, 0)
+            line(((x - 1) / progress.length) * W, H - (((progress[x - 1] - min) / range) * H), ((x) / progress.length) * W, H - (((progress[x] - min) / range) * H));
+            // let top = Math.min(H/2, H/2 - (delta*2000));
+            // noStroke()
+            // rect(((x - 1) / progress.length) * W, top, 2, delta * 2000);
+        }
+
+        noStroke()
+        
+        fill(0);
+
+        textAlign(LEFT, CENTER);
+        text(min.toFixed(4), W * 0.015, H * 0.975);
+        text(max.toFixed(4), W * 0.015, H * 0.025);
+
+        text(`Epoch: ${epoch - progress.length}`, W * 0.025, H / 2);
+        textAlign(RIGHT, CENTER);
+        text(`Epoch: ${epoch}`, W * 0.975, H / 2);
+    }
+</script>
+
+</html>
